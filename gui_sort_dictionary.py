@@ -120,25 +120,10 @@ def setup_gui():
     main_frame = tk.Frame(root, bg=BG_COLOR, padx=20, pady=10)
     main_frame.pack(expand=True, fill=tk.BOTH)
 
-    # --- 1. 並び替えキーの選択 (固定) ---
     
-    tk.Label(main_frame, text="1. 並び替えキー:", **label_style).pack(pady=(10, 2), anchor='w')
+    #並び替え順序の選択 ---
     
-    # キーを 'term' に固定
-    key_var = tk.StringVar(value="term") 
-    
-    # 【修正箇所】固定キー表示用のスタイルを新しく作成し、**label_styleとのbg重複を回避
-    fixed_key_style = label_style.copy()
-    # 文字色と背景色を上書きして目立たせる
-    fixed_key_style.update({'bg': 'gray15', 'fg': 'yellow'}) 
-
-    tk.Label(main_frame, text=f"キー: {key_var.get()} (用語/単語) - 固定", 
-             **fixed_key_style, anchor='w').pack(fill=tk.X, padx=5, pady=5)
-
-
-    # --- 2. 並び替え順序の選択 ---
-    
-    tk.Label(main_frame, text="2. 並び替え順序の選択:", **label_style).pack(pady=(10, 2), anchor='w')
+    tk.Label(main_frame, text="並び替え順序の選択:", **label_style).pack(pady=(10, 2), anchor='w')
     
     order_frame = tk.Frame(main_frame, bg=BG_COLOR)
     order_frame.pack(fill=tk.X)
@@ -151,7 +136,7 @@ def setup_gui():
     # --- 3. 実行ボタン ---
     
     register_button = tk.Button(main_frame, text=f"📂 {DATA_FILE} を並び替えて上書き保存", 
-                                command=lambda: sort_and_save(key_var, reverse_var), **button_style)
+                                command=lambda: sort_and_save(reverse_var), **button_style)
     register_button.pack(pady=20, fill=tk.X)
 
     # --- 4. 確認ボックス ---
