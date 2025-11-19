@@ -1,46 +1,15 @@
-import json
-import os
+# gui_sort_dictionary.py
 import tkinter as tk
 from tkinter import messagebox, scrolledtext, ttk
 
-# --- 共通設定 (register_data.py より) ---
-DATA_FILE = 'dictionary_data.json'
+from constants import DATA_FILE, FONT_SIZE, BG_COLOR, FG_COLOR, FONT, DICTIONARY_FIELDS
+from data_manager import load_data, save_data
+
 # グローバル変数としてウィジェットを保持
 confirm_text = None
-# --- GUI デザイン設定 (gui_search_dictionary.py より) ---
-FONT_SIZE = 14
-BG_COLOR = 'black'
-FG_COLOR = 'lime green'
-FONT = ('Consolas', FONT_SIZE)
-
-# --- データ操作ロジック (register_data.py より) ---
-
-def load_data():
-    """既存のデータをJSONファイルから読み込みます。"""
-    if os.path.exists(DATA_FILE):
-        try:
-            with open(DATA_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except json.JSONDecodeError:
-            messagebox.showerror("エラー", f"'{DATA_FILE}'のJSON形式が正しくありません。")
-            return []
-        except Exception as e:
-            messagebox.showerror("エラー", f"ファイルの読み込み中に予期せぬエラーが発生しました: {e}")
-            return []
-    return []
-
-def save_data(data):
-    """データをJSONファイルに保存します。"""
-    try:
-        with open(DATA_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
-        return True
-    except Exception as e:
-        messagebox.showerror("エラー", f"ファイルの保存中にエラーが発生しました: {e}")
-        return False
 
 def update_confirmation_box(message, tag='normal'):
-    """確認ボックスの内容を更新します。(register_data.py より)"""
+    """確認ボックスの内容を更新します。"""
     global confirm_text
     if confirm_text:
         confirm_text.config(state=tk.NORMAL)
@@ -50,6 +19,7 @@ def update_confirmation_box(message, tag='normal'):
 
 # --- 並び替えと保存のロジック ---
 
+# key_varはComboboxのStringVar、reverse_varはRadiobuttonのStringVar
 def sort_and_save(key_var, reverse_var):
     """選択されたキーと順序に基づいてデータを並び替え、ファイルに保存します。"""
     
@@ -59,17 +29,22 @@ def sort_and_save(key_var, reverse_var):
         update_confirmation_box(f"❌ エラー: データファイル（{DATA_FILE}）に項目が見つかりません。並び替えを中止しました。", 'error')
         return
 
-    # key_var は 'term' に固定されている
+    # 選択されたキーと順序を取得
     sort_key = key_var.get()
     is_reverse = reverse_var.get() == "降順" # '降順'が選択されたらTrue
+
+    # 表示名から実際のキー名 (例: '単語 (term)' -> 'term') を抽出
+    # DICTIONARY_FIELDS のキーと値が逆になった辞書を作成して検索
+    display_to_key = {v: k for k, v in DICTIONARY_FIELDS.items()}
+    actual_sort_key = display_to_key.get(sort_key, 'term') # 安全策として見つからなければ 'term'
 
     original_count = len(data_list)
     
     try:
-        # 並び替えの実行
+        # 並び替えの実行 (大文字小文字を区別しないソート)
         sorted_data = sorted(
             data_list, 
-            key=lambda item: str(item.get(sort_key, '')).lower(),
+            key=lambda item: str(item.get(actual_sort_key, '')).lower(),
             reverse=is_reverse
         )
         
@@ -83,7 +58,7 @@ def sort_and_save(key_var, reverse_var):
             confirmation_message += "--- 実行内容 ---\n"
             confirmation_message += f"  - 対象ファイル: {DATA_FILE}\n"
             confirmation_message += f"  - 処理された項目数: {original_count}件\n"
-            confirmation_message += f"  - 並び替えキー: 「{sort_key}」(用語)\n"
+            confirmation_message += f"  - 並び替えキー: 「{sort_key}」（内部キー: {actual_sort_key}）\n"
             confirmation_message += f"  - 並び替え順序: 「{order_text}」"
             
             update_confirmation_box(confirmation_message, 'success')
@@ -94,7 +69,7 @@ def sort_and_save(key_var, reverse_var):
     except Exception as e:
         update_confirmation_box(f"❌ 予期せぬ並び替えエラーが発生しました: {e}", 'error')
 
-# --- GUIのセットアップ (修正部分) ---
+# --- GUIのセットアップ ---
 def setup_gui():
     global confirm_text
     
@@ -120,8 +95,17 @@ def setup_gui():
     main_frame = tk.Frame(root, bg=BG_COLOR, padx=20, pady=10)
     main_frame.pack(expand=True, fill=tk.BOTH)
 
+    # --- 1. 並び替えキーの選択 ---
+    tk.Label(main_frame, text="並び替えキーの選択:", **label_style).pack(pady=(10, 2), anchor='w')
+
+    key_var = tk.StringVar()
+    sort_keys_display = list(DICTIONARY_FIELDS.values())
     
-    #並び替え順序の選択 ---
+    sort_key_combo = ttk.Combobox(main_frame, textvariable=key_var, values=sort_keys_display, state='readonly', font=FONT)
+    sort_key_combo.set(DICTIONARY_FIELDS['term']) # 初期値は '単語 (term)'
+    sort_key_combo.pack(fill=tk.X)
+    
+    # --- 2. 並び替え順序の選択 ---
     
     tk.Label(main_frame, text="並び替え順序の選択:", **label_style).pack(pady=(10, 2), anchor='w')
     
@@ -133,10 +117,10 @@ def setup_gui():
     tk.Radiobutton(order_frame, text="昇順 (A->Z, 0->9)", variable=reverse_var, value="昇順", **radio_style).pack(side=tk.LEFT, padx=(0, 20))
     tk.Radiobutton(order_frame, text="降順 (Z->A, 9->0)", variable=reverse_var, value="降順", **radio_style).pack(side=tk.LEFT)
     
-    # --- 3. 実行ボタン ---
+    # --- 3. 実行ボタン (修正済) ---
     
     register_button = tk.Button(main_frame, text=f"📂 {DATA_FILE} を並び替えて上書き保存", 
-                                command=lambda: sort_and_save(reverse_var), **button_style)
+                                command=lambda: sort_and_save(key_var, reverse_var), **button_style)
     register_button.pack(pady=20, fill=tk.X)
 
     # --- 4. 確認ボックス ---
@@ -151,7 +135,7 @@ def setup_gui():
     confirm_text.tag_config('success', foreground=FG_COLOR, font=(FONT[0], FONT_SIZE, 'bold'))
 
     # 初期メッセージ
-    initial_message = f"データファイル「{DATA_FILE}」を「term」(用語)で並び替え、上書き保存します。\n順序を選択後、ボタンを押してください。"
+    initial_message = f"データファイル「{DATA_FILE}」を上書き保存します。\nキーと順序を選択後、ボタンを押してください。"
     update_confirmation_box(initial_message, 'normal')
 
     root.mainloop()

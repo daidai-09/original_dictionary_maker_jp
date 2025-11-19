@@ -1,41 +1,38 @@
-import json
-import os
+# register_data.py
 import tkinter as tk
 from tkinter import scrolledtext
 
-DATA_FILE = 'dictionary_data.json'
+from constants import DATA_FILE, FONT_SIZE, BG_COLOR, FG_COLOR, FONT
+from data_manager import load_data, save_data
 
 # グローバル変数としてウィジェットを保持
 confirm_text = None
-
-def load_data():
-    """既存のデータをJSONファイルから読み込みます。"""
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return []
-
-def save_data(data):
-    """データをJSONファイルに保存します。"""
-    with open(DATA_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
+entry_term = None
+entry_pronunciation = None
+entry_definition = None
+entry_part_of_speech = None
+entry_example = None
 
 def update_confirmation_box(message, tag='normal'):
     """確認ボックスの内容を更新します。"""
-    confirm_text.config(state=tk.NORMAL)
-    confirm_text.delete(1.0, tk.END)
-    confirm_text.insert(tk.END, message, tag)
-    confirm_text.config(state=tk.DISABLED)
+    global confirm_text
+    if confirm_text:
+        confirm_text.config(state=tk.NORMAL)
+        confirm_text.delete(1.0, tk.END)
+        confirm_text.insert(tk.END, message, tag)
+        confirm_text.config(state=tk.DISABLED)
 
 def register_entry_gui():
     """GUIからの入力に基づいて新しい辞書項目を登録します。（重複チェック機能付き）"""
+    global entry_term, entry_pronunciation, entry_definition, entry_part_of_speech, entry_example
     
     key_term = entry_term.get().strip()
+    pronunciation = entry_pronunciation.get().strip()
     definition = entry_definition.get().strip()
-    category = entry_category.get().strip()
+    part_of_speech = entry_part_of_speech.get().strip()
     example = entry_example.get().strip()
 
-    # 1. 入力値チェック
+    # 1. 入力値チェック (単語/用語は必須)
     if not key_term:
         update_confirmation_box("❌ エラー: 検索キーとなる用語/単語は必須です。", 'error')
         return
@@ -51,72 +48,74 @@ def register_entry_gui():
     # 3. 新しいエントリーを作成・保存
     new_entry = {
         "term": key_term,
+        "pronunciation": pronunciation,
         "definition": definition,
-        "category": category,
+        "part_of_speech": part_of_speech,
         "example": example
     }
     
     data_list.append(new_entry)
-    save_data(data_list)
     
-    # 4. 登録内容の確認を出力ボックスに表示
-    confirmation_message = "✅ 登録が完了しました。\n"
-    confirmation_message += "--- 登録内容の確認 ---\n"
-    confirmation_message += f"  - 用語: {key_term}\n"
-    confirmation_message += f"  - 定義: {definition}\n"
-    confirmation_message += f"  - カテゴリ: {category}\n"
-    confirmation_message += f"  - 使用例: {example}\n"
-    
-    update_confirmation_box(confirmation_message, 'success')
-    
-    # 5. 登録後、入力フィールドをクリア
-    entry_term.delete(0, tk.END)
-    entry_definition.delete(0, tk.END)
-    entry_category.delete(0, tk.END)
-    entry_example.delete(0, tk.END)
+    if save_data(data_list):
+        # 4. 登録内容の確認を出力ボックスに表示
+        confirmation_message = "✅ 登録が完了しました。\n"
+        confirmation_message += "--- 登録内容の確認 ---\n"
+        confirmation_message += f"  - 単語: {key_term}\n"
+        confirmation_message += f"  - 発音: {pronunciation}\n"
+        confirmation_message += f"  - 意味/定義: {definition}\n"
+        confirmation_message += f"  - 品詞: {part_of_speech}\n"
+        confirmation_message += f"  - 使用例: {example}\n"
+        
+        update_confirmation_box(confirmation_message, 'success')
+        
+        # 5. 登録後、入力フィールドをクリア
+        entry_term.delete(0, tk.END)
+        entry_pronunciation.delete(0, tk.END)
+        entry_definition.delete(0, tk.END)
+        entry_part_of_speech.delete(0, tk.END)
+        entry_example.delete(0, tk.END)
+    else:
+        update_confirmation_box("❌ エラー: データファイルの保存に失敗しました。", 'error')
+
 
 # --- GUIのセットアップ ---
 def setup_gui():
-    global entry_term, entry_definition, entry_category, entry_example, confirm_text
+    global entry_term, entry_pronunciation, entry_definition, entry_part_of_speech, entry_example, confirm_text
     
     root = tk.Tk()
     root.title("辞書項目登録アプリケーション")
-    
-    # フォントサイズの設定
-    FONT_SIZE = 14
-    
-    # デザイン設定
-    BG_COLOR = 'black'
-    FG_COLOR = 'lime green'
-    FONT = ('Consolas', FONT_SIZE)
     
     root.configure(bg=BG_COLOR)
 
     # ウィジェットのスタイル設定
     label_style = {'bg': BG_COLOR, 'fg': FG_COLOR, 'font': FONT}
     entry_style = {'bg': 'gray15', 'fg': FG_COLOR, 'insertbackground': FG_COLOR, 'font': FONT, 'relief': tk.SOLID, 'bd': 1}
-    button_style = {'bg': 'darkgreen', 'fg': FG_COLOR, 'font': ('Consolas', FONT_SIZE, 'bold'), 'activebackground': 'green', 'activeforeground': 'white', 'relief': tk.RAISED, 'bd': 2}
-    text_area_style = {'bg': 'gray15', 'fg': FG_COLOR, 'font': ('Consolas', 12), 'relief': tk.SUNKEN, 'bd': 2, 'insertbackground': FG_COLOR} # 確認ボックスは少し小さめのフォント
+    button_style = {'bg': 'darkgreen', 'fg': FG_COLOR, 'font': (FONT[0], FONT_SIZE, 'bold'), 'activebackground': 'green', 'activeforeground': 'white', 'relief': tk.RAISED, 'bd': 2}
+    text_area_style = {'bg': 'gray15', 'fg': FG_COLOR, 'font': ('Consolas', 12), 'relief': tk.SUNKEN, 'bd': 2, 'insertbackground': FG_COLOR}
     
     # メインフレーム
     main_frame = tk.Frame(root, bg=BG_COLOR, padx=20, pady=10)
     main_frame.pack(expand=True, fill=tk.BOTH)
 
-    # --- 入力フィールドの配置 (変更なし) ---
+    # --- 入力フィールドの配置 ---
     
-    tk.Label(main_frame, text="1. 検索キーとなる用語/単語:", **label_style).pack(pady=(10, 2), anchor='w')
+    tk.Label(main_frame, text="1. 単語 (検索キー):", **label_style).pack(pady=(10, 2), anchor='w')
     entry_term = tk.Entry(main_frame, width=50, **entry_style)
     entry_term.pack(fill=tk.X)
     
-    tk.Label(main_frame, text="2. 定義/主要な説明:", **label_style).pack(pady=(10, 2), anchor='w')
+    tk.Label(main_frame, text="2. 発音:", **label_style).pack(pady=(10, 2), anchor='w')
+    entry_pronunciation = tk.Entry(main_frame, width=50, **entry_style)
+    entry_pronunciation.pack(fill=tk.X)
+    
+    tk.Label(main_frame, text="3. 意味・定義:", **label_style).pack(pady=(10, 2), anchor='w')
     entry_definition = tk.Entry(main_frame, width=50, **entry_style)
     entry_definition.pack(fill=tk.X)
     
-    tk.Label(main_frame, text="3. カテゴリ/分野:", **label_style).pack(pady=(10, 2), anchor='w')
-    entry_category = tk.Entry(main_frame, width=50, **entry_style)
-    entry_category.pack(fill=tk.X)
+    tk.Label(main_frame, text="4. 品詞:", **label_style).pack(pady=(10, 2), anchor='w')
+    entry_part_of_speech = tk.Entry(main_frame, width=50, **entry_style)
+    entry_part_of_speech.pack(fill=tk.X)
     
-    tk.Label(main_frame, text="4. 使用例/補足説明:", **label_style).pack(pady=(10, 2), anchor='w')
+    tk.Label(main_frame, text="5. 使用例:", **label_style).pack(pady=(10, 2), anchor='w')
     entry_example = tk.Entry(main_frame, width=50, **entry_style)
     entry_example.pack(fill=tk.X)
     
