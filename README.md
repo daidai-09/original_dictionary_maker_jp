@@ -1,4 +1,4 @@
-# original_dictionary_maker_jp
+# MyTextMaker & MyDictionaryMaker for JP
 This application is for creating your own dictionaries.<br>
 AI(Gemini)をこき使って自己満の辞書アプリを作成しました。
 <br>
