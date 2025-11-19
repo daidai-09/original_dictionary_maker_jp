@@ -1,5 +1,5 @@
 # original_dictionary_maker_jp
-This application is for creating your own dictionaries.
+This application is for creating your own dictionaries.<br>
 AI(Gemini)をこき使って自己満の辞書アプリを作成しました。
 <br>
 register.pyは書き込みアプリ<br>
