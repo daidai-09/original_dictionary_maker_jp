@@ -2,22 +2,114 @@
 import json 
 import os
 import tkinter as tk
-from tkinter import filedialog, messagebox, scrolledtext, ttk
+from tkinter import filedialog, scrolledtext, ttk # ttkをインポート
+# --- Pillow (PIL Fork) のインポート ---
+from PIL import Image, ImageTk 
+import sys 
+import os  
 
+# constants.py からのインポート
 from constants import DATA_FILE, FONT_SIZE, BG_COLOR, FG_COLOR, FONT, DICTIONARY_FIELDS
-# load_data はここでは使用せず、ファイル選択機能を残すため
-# load_data_from_file_dialog と load_data_default を分ける
+
+# --- PyInstallerリソースパス関数 (配布用に追加) ---
+def resource_path(relative_path):
+    """PyInstallerでバンドルされたリソースの絶対パスを返す"""
+    try:
+        # PyInstallerが生成した一時フォルダのパスを取得
+        base_path = sys._MEIPASS
+    except Exception:
+        # スクリプトとして実行されている場合のベースパス
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 
 # グローバル変数として読み込んだ全データを保持
 loaded_data = []
-loaded_filepath = "" # 読み込んだファイルのパスを保持
+loaded_filepath = "" 
 
 # ウィジェットをグローバルで保持
 result_text = None
 search_entry = None
-# search_scope_combo の代わりに search_scope_var を使用
 search_scope_var = None 
 confirm_text = None 
+# 現在の検索モードを保持 (デフォルトは 'normal')
+search_mode = 'normal' 
+
+# --- スプラッシュスクリーン関数 (画像ロゴ対応) ---
+def show_splash_screen(setup_main_gui_func):
+    """
+    スプラッシュスクリーンを表示し、一定時間後にそれを閉じ、
+    メインGUI起動関数 (setup_main_gui_func) を呼び出します。
+    """
+    splash = tk.Tk()
+    splash.overrideredirect(True) 
+    splash.attributes('-topmost', True) 
+    splash.config(bg=BG_COLOR) 
+
+    # スプラッシュスクリーンのサイズと位置 (中央配置)
+    splash_width = 800
+    splash_height = 450
+    screen_width = splash.winfo_screenwidth()
+    screen_height = splash.winfo_screenheight()
+    x = (screen_width // 2) - (splash_width // 2)
+    y = (screen_height // 2) - (splash_height // 2)
+    splash.geometry(f'{splash_width}x{splash_height}+{x}+{y}')
+
+    # --- スプラッシュスクリーンのコンテンツ作成 ---
+    logo_frame = tk.Frame(splash, bg=BG_COLOR)
+    logo_frame.pack(expand=True, padx=50, pady=50)
+
+    # 🌟 画像ロゴの表示 (resource_pathを使用するように修正) 🌟
+    logo_image_path = resource_path("logo.png") 
+    logo_label = None 
+
+    try:
+        # 画像を読み込み、Tkinterで表示可能な形式に変換
+        original_image = Image.open(logo_image_path)
+        
+        # サイズ調整 (幅250pxに調整)
+        img_width = 250
+        img_height = int(img_width * (original_image.height / original_image.width))
+        resized_image = original_image.resize((img_width, img_height), Image.Resampling.LANCZOS)
+        
+        logo_image_tk = ImageTk.PhotoImage(resized_image)
+        
+        logo_label = tk.Label(logo_frame, image=logo_image_tk, bg=BG_COLOR)
+        logo_label.image = logo_image_tk 
+        logo_label.pack(side=tk.LEFT, padx=(0, 20))
+
+    except FileNotFoundError:
+        print(f"警告: ロゴ画像ファイル '{logo_image_path}' が見つかりませんでした。テキストロゴで代替します。")
+        # 画像が見つからない場合はテキストロゴで代替
+        tk.Label(logo_frame, text="📚📚📚\n📚📚📚\n📚📚📚", 
+                 font=("Segoe UI Emoji", 36, 'bold'), fg=FG_COLOR, bg=BG_COLOR).pack(side=tk.LEFT, padx=(0, 20))
+    except Exception as e:
+        print(f"警告: ロゴ画像の読み込み中にエラーが発生しました: {e}。テキストロゴで代替します。")
+        # その他のエラーが発生した場合もテキストロゴで代替
+        tk.Label(logo_frame, text="📚📚📚\n📚📚📚\n📚📚📚", 
+                 font=("Segoe UI Emoji", 36, 'bold'), fg=FG_COLOR, bg=BG_COLOR).pack(side=tk.LEFT, padx=(0, 20))
+
+
+    title_frame = tk.Frame(logo_frame, bg=BG_COLOR)
+    title_frame.pack(side=tk.LEFT, anchor='center')
+
+    tk.Label(title_frame, text="Dictionary", 
+             font=(FONT[0], FONT_SIZE + 20, 'bold'), fg=FG_COLOR, bg=BG_COLOR).pack(anchor='w')
+    tk.Label(title_frame, text="Searcher", 
+             font=(FONT[0], FONT_SIZE + 20, 'bold'), fg=FG_COLOR, bg=BG_COLOR).pack(anchor='w')
+    
+    # バージョン情報 
+    tk.Label(splash, text="Version 2.0[Dive Bombing] (2025/11/21)", 
+             font=(FONT[0], FONT_SIZE + 2, 'bold'), fg=FG_COLOR, bg=BG_COLOR).pack(side=tk.BOTTOM, anchor='se', padx=20, pady=10)
+
+    def start_main_app():
+        splash.destroy()      
+        setup_main_gui_func() 
+
+    splash.after(3000, start_main_app) 
+
+    splash.mainloop()
+ 
+
 
 # --- 共通関数 ---
 def update_confirmation_box(message, tag='normal'):
@@ -40,13 +132,11 @@ def _load_data_logic(filepath, silent=False):
         
         loaded_filepath = filepath
         if not silent:
-            # confirm_text は setup_gui() で定義済み
             update_confirmation_box(
                 f"✅ データが正常に読み込まれました。\nファイル: {os.path.basename(filepath)}\n項目数: {len(loaded_data)}件", 
                 'success'
             )
         
-        # 読み込み後、全データを結果表示エリアに出力
         search_and_display()
         return True
         
@@ -79,7 +169,6 @@ def load_data_default():
                 'success'
             )
     else:
-        # confirm_text は setup_gui() で定義済み
         update_confirmation_box(f"「データ読み込み」ボタンを押して、辞書データファイルを選択してください。（デフォルトファイル: {DATA_FILE} が見つかりませんでした）", 'normal')
 
 
@@ -101,72 +190,102 @@ def load_data_from_file_dialog():
 
     _load_data_logic(filepath)
 
+# --- 検索モード設定のラッパー関数 ---
+def set_search_mode_and_run(mode):
+    """グローバルな検索モードを設定し、検索関数を呼び出します。"""
+    global search_mode
+    search_mode = mode
+    search_and_display()
 
+# --- 検索ロジック ---
 def search_and_display(event=None):
     """検索ボックスの入力と検索ジャンルに基づいてデータをフィルタリングし、結果を表示します。"""
-    global search_scope_var # OptionMenuの変数を使用
+    global search_scope_var, search_mode 
     
     if not loaded_data:
         display_results([])
         return
         
     search_term = search_entry.get().lower().strip()
-    # OptionMenu の StringVar から値を取得
     selected_scope_display = search_scope_var.get()
     
-    # 検索ジャンルとデータキーのマッピング 
-    scope_map = {v: k for k, v in DICTIONARY_FIELDS.items()} # DICTIONARY_FIELDSを反転
+    scope_map = {v: k for k, v in DICTIONARY_FIELDS.items()} 
     
     if selected_scope_display == "全項目":
         search_keys = list(DICTIONARY_FIELDS.keys())
     else:
         search_keys = [scope_map.get(selected_scope_display)]
 
-    # 検索キーワードがない場合は、全データを表示
     if not search_term:
         display_results(loaded_data)
+        search_mode = 'normal' 
         return
     
+    current_mode = search_mode 
     results = []
     
-    # フィルタリング検索
     for entry in loaded_data:
-        # search_keys のNoneチェックを追加
         if not search_keys or search_keys[0] is None: 
              continue 
 
         found = False
-        # 選択された検索キーのみをチェック
         for key in search_keys:
-            if search_term in str(entry.get(key, '')).lower(): # str()で安全性を高める
-                results.append(entry)
-                found = True
-                break
+            entry_value = str(entry.get(key, '')).lower()
             
-    display_results(results, search_term)
+            if current_mode == 'start_with':
+                if entry_value.startswith(search_term):
+                    results.append(entry)
+                    found = True
+                    break
+            
+            elif current_mode == 'end_with':
+                if entry_value.endswith(search_term):
+                    results.append(entry)
+                    found = True
+                    break
+                    
+            else: # 'normal' (含む検索)
+                if search_term in entry_value: 
+                    results.append(entry)
+                    found = True
+                    break
+            
+    display_results(results, search_term, current_mode)
+    
+    search_mode = 'normal' 
 
-
-def display_results(results, search_term=""):
-    """指定されたデータを結果表示エリアに整形して出力します。"""
-    # result_text は setup_gui() で定義済みのため、AttributeErrorは発生しない
+def display_results(results, search_term="", mode='normal'):
+    """指定されたデータを結果表示エリアに整形して出力します。(モード表示を追加)"""
     result_text.config(state=tk.NORMAL)
     result_text.delete(1.0, tk.END)
     
     if not loaded_data and not results:
         result_text.insert(tk.END, "データを読み込んでください。", 'info')
     elif not results and search_term:
-        result_text.insert(tk.END, f"キーワード「{search_term}」に一致する項目は見つかりませんでした。", 'info')
+        
+        mode_text = ""
+        if mode == 'start_with':
+            mode_text = "(最初の文字検索)"
+        elif mode == 'end_with':
+            mode_text = "(最後の文字検索)"
+            
+        result_text.insert(tk.END, f"キーワード「{search_term}」に一致する項目は見つかりませんでした {mode_text}", 'info')
+        
     elif not results and not search_term and loaded_data:
          result_text.insert(tk.END, "キーワードを入力するか、全項目が表示されています。", 'info')
     elif not results and not search_term and not loaded_data:
          result_text.insert(tk.END, "データが読み込まれていません。", 'info')
     else:
-        # ヘッダー表示
-        header_text = f"--- 表示項目数: {len(results)}件 (全{len(loaded_data)}件中) ---\n\n"
+        mode_text = "（含む）"
+        if mode == 'start_with':
+            mode_text = "（最初の文字検索）"
+        elif mode == 'end_with':
+            mode_text = "（最後の文字検索）"
+
+        header_text = f"--- 表示項目数: {len(results)}件 {mode_text} (全{len(loaded_data)}件中) ---\n\n"
         
         result_text.insert(tk.END, header_text, 'header')
         
-        # 各項目の整形出力
         for i, result in enumerate(results, 1):
             result_text.insert(tk.END, f"[{i}] 単語: {result.get('term', 'N/A')}\n", 'term')
             result_text.insert(tk.END, f"  発音: {result.get('pronunciation', 'N/A')}\n")
@@ -177,37 +296,46 @@ def display_results(results, search_term=""):
     result_text.config(state=tk.DISABLED)
 
 # --- GUIの構築とデザイン設定 ---
-
 def setup_gui():
     
     global search_entry, result_text, search_scope_var, confirm_text
     
     root = tk.Tk()
-    root.title("辞書検索アプリケーション")
-    
+    root.title("DicSearcher V1.2[DogFight]")
     root.configure(bg=BG_COLOR)
     
-    # ttkスタイル設定（OptionMenuでは使用しないが、Entry/Textの見た目統一のためttkのベーススタイルは残す）
+    # ウィンドウを中央に配置するロジック
+    window_width = 800
+    window_height = 650
+
+    screen_width = root.winfo_screenwidth()
+    screen_height = root.winfo_screenheight()
+
+    x_cordinate = (screen_width // 2) - (window_width // 2)
+    y_cordinate = (screen_height // 2) - (window_height // 2)
+
+    root.geometry(f'{window_width}x{window_height}+{x_cordinate}+{y_cordinate}')
+    
     style = ttk.Style()
     style.theme_use('clam')
     
-    # ウィジェットの共通スタイル設定
+    # 🌟 TLWRから参照したカスタムスクロールバースタイルの定義 🌟
+    style.configure("TLWR.Vertical.TScrollbar", background='gray30', troughcolor='gray15', bordercolor='gray30', arrowcolor=FG_COLOR)
+    style.map("TLWR.Vertical.TScrollbar", 
+             background=[('active', 'gray40')], 
+             relief=[('pressed', 'sunken'), ('!active', 'flat')])
+    # --------------------------------------------------------
+    
     label_style = {'bg': BG_COLOR, 'fg': FG_COLOR, 'font': FONT}
     entry_style = {'bg': 'gray15', 'fg': FG_COLOR, 'insertbackground': FG_COLOR, 'font': FONT, 'relief': tk.SOLID, 'bd': 1}
-    button_style = {'bg': 'darkgreen', 'fg': FG_COLOR, 'font': FONT, 'activebackground': 'green', 'activeforeground': 'white', 'relief': tk.RAISED, 'bd': 2}
-    text_area_style = {'bg': 'gray15', 'fg': FG_COLOR, 'font': FONT, 'relief': tk.SUNKEN, 'bd': 2, 'insertbackground': FG_COLOR}
+    button_style = {'bg': 'darkgreen', 'fg': FG_COLOR, 'font': (FONT[0], FONT_SIZE, 'bold'), 'activebackground': 'green', 'activeforeground': 'white', 'relief': tk.RAISED, 'bd': 2}
+    # scrolledtext ではなく tk.Text に使用するスタイル
+    text_area_style = {'bg': 'gray15', 'fg': FG_COLOR, 'font': FONT, 'relief': tk.SUNKEN, 'bd': 2, 'insertbackground': FG_COLOR} 
     
-    # ★ OptionMenu 用の追加スタイル
     option_menu_style = {
-        'bg': 'gray15',          # ボタンの背景色
-        'fg': FG_COLOR,          # ボタンの文字色
-        'font': FONT,
-        'activebackground': 'darkgreen', # クリック時の背景色
-        'activeforeground': 'white',    # クリック時の文字色
-        'indicatoron': 0,        # ドロップダウンインジケータを非表示にする
-        'width': 20,
-        'relief': tk.SOLID,
-        'bd': 1
+        'bg': 'gray15', 'fg': FG_COLOR, 'font': FONT,
+        'activebackground': 'darkgreen', 'activeforeground': 'white',    
+        'indicatoron': 0, 'width': 20, 'relief': tk.SOLID, 'bd': 1
     }
     
     main_frame = tk.Frame(root, bg=BG_COLOR, padx=10, pady=10)
@@ -223,63 +351,79 @@ def setup_gui():
     
     tk.Label(control_frame, text="🔍 検索ジャンル:", **label_style).pack(side=tk.LEFT, padx=(0, 5))
 
-    # --- 検索ジャンル OptionMenu (ttk.Comboboxから変更) ---
     search_scopes = ["全項目"] + list(DICTIONARY_FIELDS.values())
     search_scope_var = tk.StringVar(root)
-    search_scope_var.set(search_scopes[0]) # 初期値
+    search_scope_var.set(search_scopes[0]) 
 
-    # OptionMenuの作成
     search_menu = tk.OptionMenu(control_frame, search_scope_var, *search_scopes, command=search_and_display)
     search_menu.config(**option_menu_style)
     
-    # ★ ドロップダウンメニュー自体の見た目を設定
     menu = root.nametowidget(search_menu.menuname)
     menu.config(
-        bg='gray15',             # ドロップダウンメニューの背景
-        fg='lime green',         # ドロップダウンメニューの文字色
-        font=FONT,
-        activebackground='darkgreen', # 選択肢にマウスオーバーしたときの背景色
-        activeforeground='white'      # 選択肢にマウスオーバーしたときの文字色
+        bg='gray15', fg='lime green', font=FONT,
+        activebackground='darkgreen', activeforeground='white'
     )
     
     search_menu.pack(side=tk.LEFT, padx=(0, 10))
 
-    # 検索入力ボックス
     search_entry = tk.Entry(control_frame, width=30, **entry_style)
     search_entry.pack(side=tk.LEFT, expand=True, fill=tk.X)
     search_entry.bind('<KeyRelease>', search_and_display)
 
+    button_frame = tk.Frame(main_frame, bg=BG_COLOR)
+    button_frame.pack(pady=(5, 10), fill=tk.X)
+    
+    start_button = tk.Button(button_frame, text="▶️ 最初の文字検索", 
+                             command=lambda: set_search_mode_and_run('start_with'), **button_style)
+    start_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 5))
+    
+    end_button = tk.Button(button_frame, text="🔚 最後の文字検索", 
+                           command=lambda: set_search_mode_and_run('end_with'), **button_style)
+    end_button.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(5, 0))
+
     # --- 確認ボックスの追加 (ロードメッセージ用) --- 
     tk.Label(main_frame, text="--- 状況 / メッセージ ---", **label_style).pack(pady=(10, 0), anchor='w')
     
-    # confirm_text を定義
-    confirm_text = scrolledtext.ScrolledText(main_frame, wrap=tk.WORD, height=3, 
-                                            bg='gray15', fg='lime green', font=('Consolas', 12), 
-                                            relief=tk.SUNKEN, bd=2, insertbackground='lime green', state=tk.DISABLED)
-    confirm_text.pack(pady=5, fill=tk.X)
+    # 🌟 scrolledtext を tk.Text + ttk.Scrollbar に置き換え (確認ボックス) 🌟
+    confirm_frame = tk.Frame(main_frame, bg=BG_COLOR)
+    confirm_frame.pack(pady=5, fill=tk.X)
     
-    # テキストの色付け設定 (確認ボックス用)
+    confirm_text = tk.Text(confirm_frame, wrap=tk.WORD, height=3, 
+                           bg='gray15', fg='lime green', font=('Consolas', 12), 
+                           relief=tk.SUNKEN, bd=2, insertbackground='lime green', state=tk.DISABLED)
+    
+    vscroll_confirm = ttk.Scrollbar(confirm_frame, orient=tk.VERTICAL, command=confirm_text.yview, style="TLWR.Vertical.TScrollbar")
+    vscroll_confirm.pack(side=tk.RIGHT, fill=tk.Y)
+    confirm_text.configure(yscrollcommand=vscroll_confirm.set)
+    confirm_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+    # --------------------------------------------------------------------------
+    
     confirm_text.tag_config('error', foreground='red')
     confirm_text.tag_config('info', foreground='gray')
     confirm_text.tag_config('success', foreground=FG_COLOR, font=(FONT[0], FONT_SIZE, 'bold'))
     
-    
     # 3. 検索結果表示エリア
     tk.Label(main_frame, text="--- データ一覧 / 検索結果 ---", **label_style).pack(pady=(10, 0), anchor='w')
     
-    # result_text を定義
-    result_text = scrolledtext.ScrolledText(main_frame, wrap=tk.WORD, width=70, height=15, 
-                                            state=tk.DISABLED, **text_area_style)
-    result_text.pack(pady=10, fill=tk.BOTH, expand=True)
+    # 🌟 scrolledtext を tk.Text + ttk.Scrollbar に置き換え (結果エリア) 🌟
+    result_frame = tk.Frame(main_frame, bg=BG_COLOR)
+    result_frame.pack(pady=10, fill=tk.BOTH, expand=True)
 
-    # テキストの色付け設定 (結果表示エリア用)
+    result_text = tk.Text(result_frame, wrap=tk.WORD, width=70, height=15, 
+                          state=tk.DISABLED, **text_area_style)
+                          
+    vscroll_result = ttk.Scrollbar(result_frame, orient=tk.VERTICAL, command=result_text.yview, style="TLWR.Vertical.TScrollbar")
+    vscroll_result.pack(side=tk.RIGHT, fill=tk.Y)
+    result_text.configure(yscrollcommand=vscroll_result.set)
+    result_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+    # --------------------------------------------------------------------------
+
     result_text.tag_config('header', foreground='yellow', font=(FONT[0], FONT[1], 'bold'))
     result_text.tag_config('term', foreground='light coral', font=(FONT[0], FONT[1], 'bold'))
     
-    # 全てのウィジェット定義後に load_data_default() を呼び出す
     load_data_default() 
 
     root.mainloop()
 
 if __name__ == "__main__":
-    setup_gui()
+    show_splash_screen(setup_gui)
